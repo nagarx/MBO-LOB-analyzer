@@ -1,0 +1,11 @@
+name: quick
+description: "Fast smoke test -- data quality only (~1 min)"
+
+config:
+  timescales: ["1m", "5m"]
+
+phases:
+  - name: health
+    description: "Data quality and integrity check"
+    analyzers:
+      - DataQualityAnalyzer

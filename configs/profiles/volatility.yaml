@@ -1,0 +1,32 @@
+name: volatility
+description: "Deep volatility analysis -- signature plot, jump risk, noise floor"
+
+config:
+  timescales: ["1s", "5s", "30s", "1m", "5m", "15m", "1h"]
+  trading_hours: "us_equity_rth"
+
+phases:
+  - name: health
+    description: "Data quality check"
+    analyzers:
+      - DataQualityAnalyzer
+
+  - name: price_returns
+    description: "Return distributions at all timescales"
+    analyzers:
+      - ReturnAnalyzer
+
+  - name: volatility
+    description: "Realized volatility, intraday curve, vol-of-vol, persistence"
+    analyzers:
+      - VolatilityAnalyzer
+
+  - name: jumps
+    description: "Jump detection, characterization, and asymmetry"
+    analyzers:
+      - JumpRiskAnalyzer
+
+  - name: noise
+    description: "Microstructure noise estimation and optimal sampling"
+    analyzers:
+      - MicrostructureNoiseAnalyzer

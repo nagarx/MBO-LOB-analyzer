@@ -1,0 +1,28 @@
+name: standard
+description: "Standard daily analysis -- balanced depth and speed"
+
+config:
+  timescales: ["1s", "5s", "30s", "1m", "5m", "15m", "1h"]
+  trading_hours: "us_equity_rth"
+
+phases:
+  - name: health
+    description: "Data quality and integrity"
+    analyzers:
+      - DataQualityAnalyzer
+
+  - name: price
+    description: "Return and volatility characterization"
+    analyzers:
+      - ReturnAnalyzer
+      - VolatilityAnalyzer
+
+  - name: spread
+    description: "Spread dynamics and liquidity"
+    analyzers:
+      - SpreadAnalyzer
+
+  - name: flow
+    description: "Order flow imbalance and directional flow"
+    analyzers:
+      - OrderFlowAnalyzer

@@ -1,0 +1,17 @@
+name: defaults
+description: "Global default configuration for MBO-LOB-analyzer"
+
+config:
+  timescales: ["1s", "5s", "30s", "1m", "5m", "15m", "1h"]
+  trading_hours: "us_equity"
+  max_rows_per_day: null
+
+thresholds:
+  significance_alpha: 0.05
+  use_bonferroni: true
+  correlation_weak: 0.3
+  correlation_moderate: 0.5
+  correlation_strong: 0.7
+  spread_wide_multiplier: 3.0
+  volume_high_multiplier: 2.0
+  large_order_percentile: 99.0

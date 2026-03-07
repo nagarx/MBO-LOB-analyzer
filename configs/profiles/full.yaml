@@ -1,0 +1,62 @@
+name: full
+description: "Full analysis -- all analyzers across every domain (price, spread, depth, liquidity, flow)"
+
+config:
+  timescales: ["1s", "5s", "30s", "1m", "5m", "15m", "1h"]
+  trading_hours: "us_equity_rth"
+
+phases:
+  - name: health
+    description: "Data quality and integrity"
+    analyzers:
+      - DataQualityAnalyzer
+
+  - name: price_returns
+    description: "Return distributions at all timescales"
+    analyzers:
+      - ReturnAnalyzer
+
+  - name: volatility
+    description: "Realized volatility, intraday curve, vol-of-vol, persistence"
+    analyzers:
+      - VolatilityAnalyzer
+
+  - name: jumps
+    description: "Jump detection, characterization, and asymmetry"
+    analyzers:
+      - JumpRiskAnalyzer
+
+  - name: noise
+    description: "Microstructure noise estimation and optimal sampling"
+    analyzers:
+      - MicrostructureNoiseAnalyzer
+
+  - name: spread
+    description: "Spread distribution, regime, intraday curve, width classification"
+    analyzers:
+      - SpreadAnalyzer
+
+  - name: depth
+    description: "10-level book depth, imbalance, concentration, post-trade recovery"
+    analyzers:
+      - DepthAnalyzer
+
+  - name: liquidity
+    description: "Effective spread, volume-weighted spread, microprice deviation"
+    analyzers:
+      - LiquidityAnalyzer
+
+  - name: order_flow
+    description: "OFI at multiple timescales, cumulative delta, aggressor ratio, flow-return prediction"
+    analyzers:
+      - OrderFlowAnalyzer
+
+  - name: trade
+    description: "Trade size distribution, clustering, VWAP, trade-through, large trade impact"
+    analyzers:
+      - TradeAnalyzer
+
+  - name: order_lifecycle
+    description: "Order duration, fill rate, cancel dynamics, modify patterns, transition matrix"
+    analyzers:
+      - OrderLifecycleAnalyzer

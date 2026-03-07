@@ -1,0 +1,27 @@
+name: flow
+description: "Order flow analysis -- OFI, trade execution, and order lifecycle (MBO-powered)"
+
+config:
+  timescales: ["1s", "5s", "30s", "1m", "5m", "15m", "1h"]
+  trading_hours: "us_equity_rth"
+
+phases:
+  - name: health
+    description: "Data quality and integrity"
+    analyzers:
+      - DataQualityAnalyzer
+
+  - name: order_flow
+    description: "OFI at multiple timescales, cumulative delta, aggressor ratio, flow-return prediction"
+    analyzers:
+      - OrderFlowAnalyzer
+
+  - name: trade
+    description: "Trade size distribution, clustering, VWAP, trade-through, large trade impact"
+    analyzers:
+      - TradeAnalyzer
+
+  - name: order_lifecycle
+    description: "Order duration, fill rate, cancel dynamics, modify patterns, transition matrix"
+    analyzers:
+      - OrderLifecycleAnalyzer

@@ -1,0 +1,27 @@
+name: spread
+description: "Spread dynamics analysis -- distribution, depth, liquidity"
+
+config:
+  timescales: ["1s", "5s", "30s", "1m", "5m", "15m", "1h"]
+  trading_hours: "us_equity_rth"
+
+phases:
+  - name: health
+    description: "Data quality check"
+    analyzers:
+      - DataQualityAnalyzer
+
+  - name: spread
+    description: "Spread distribution, regime, intraday curve, width classification"
+    analyzers:
+      - SpreadAnalyzer
+
+  - name: depth
+    description: "10-level book depth, imbalance, concentration, post-trade recovery"
+    analyzers:
+      - DepthAnalyzer
+
+  - name: liquidity
+    description: "Effective spread, volume-weighted spread, microprice deviation"
+    analyzers:
+      - LiquidityAnalyzer

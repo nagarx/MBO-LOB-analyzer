@@ -1,0 +1,40 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environment
+.venv/
+env/
+.env
+
+# Testing & linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Analysis outputs (generated, not source)
+*_output/
+*_checkpoint/
+*.log
+
+# Data (never commit raw data or large binaries)
+*.parquet
+*.pkl
+*.h5
+*.hdf5
+data/
