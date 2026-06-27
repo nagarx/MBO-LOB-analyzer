@@ -47,21 +47,37 @@ class TimescaleConfig:
 
         Supported formats: ``"1s"``, ``"5s"``, ``"30s"``, ``"1m"``, ``"5m"``,
         ``"15m"``, ``"1h"``, ``"1d"``.
+
+        Raises:
+            ValueError: If the label is unparseable or the numeric part is <= 0.
         """
         label = label.strip().lower()
         if label.endswith("s"):
             n = int(label[:-1])
+            if n <= 0:
+                raise ValueError(f"Timescale must be positive, got {label!r}")
             return cls.seconds(n, rth_only=rth_only)
         elif label.endswith("m"):
             n = int(label[:-1])
+            if n <= 0:
+                raise ValueError(f"Timescale must be positive, got {label!r}")
             return cls.minutes(n, rth_only=rth_only)
         elif label.endswith("h"):
             n = int(label[:-1])
+            if n <= 0:
+                raise ValueError(f"Timescale must be positive, got {label!r}")
             return cls(
                 resolution_ns=n * NS_PER_HOUR, label=label, trading_hours_only=rth_only,
             )
         elif label.endswith("d"):
-            return cls.daily()
+            n = int(label[:-1]) if len(label) > 1 else 1
+            if n <= 0:
+                raise ValueError(f"Timescale must be positive, got {label!r}")
+            return cls(
+                resolution_ns=n * 24 * NS_PER_HOUR,
+                label=label,
+                trading_hours_only=False,
+            )
         else:
             raise ValueError(
                 f"Cannot parse timescale label {label!r}. "

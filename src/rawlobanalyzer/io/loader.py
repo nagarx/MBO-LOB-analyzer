@@ -16,6 +16,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from rawlobanalyzer.core.constants import NANODOLLARS_PER_DOLLAR
 from rawlobanalyzer.io.schema import (
     LOB_ALL_COLUMNS,
     MBO_COLUMNS,
@@ -88,19 +89,19 @@ class DayData:
 
     @cached_property
     def best_bids_usd(self) -> np.ndarray:
-        """Best bid prices in dollars (float64, nanodollars / 1e9)."""
+        """Best bid prices in dollars (float64, nanodollars -> USD)."""
         if self.lob is None:
             raise ValueError("LOB data not loaded")
         raw = self.lob.column("best_bid").to_numpy()
-        return raw.astype(np.float64) / 1e9
+        return raw.astype(np.float64) / NANODOLLARS_PER_DOLLAR
 
     @cached_property
     def best_asks_usd(self) -> np.ndarray:
-        """Best ask prices in dollars (float64, nanodollars / 1e9)."""
+        """Best ask prices in dollars (float64, nanodollars -> USD)."""
         if self.lob is None:
             raise ValueError("LOB data not loaded")
         raw = self.lob.column("best_ask").to_numpy()
-        return raw.astype(np.float64) / 1e9
+        return raw.astype(np.float64) / NANODOLLARS_PER_DOLLAR
 
     @property
     def n_lob_rows(self) -> int:

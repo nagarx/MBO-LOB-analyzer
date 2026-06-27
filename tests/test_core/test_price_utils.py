@@ -48,6 +48,19 @@ class TestLogReturns:
         rets = log_returns(prices)
         assert len(rets) == 0
 
+    def test_inf_price_produces_nan(self):
+        """Inf prices must be excluded, not propagated (P1-C fix)."""
+        prices = np.array([100.0, np.inf, 100.0])
+        rets = log_returns(prices)
+        assert np.isnan(rets[0]), "return from 100 -> Inf should be NaN"
+        assert np.isnan(rets[1]), "return from Inf -> 100 should be NaN"
+
+    def test_negative_inf_price_produces_nan(self):
+        prices = np.array([100.0, -np.inf, 100.0])
+        rets = log_returns(prices)
+        assert np.isnan(rets[0])
+        assert np.isnan(rets[1])
+
 
 class TestSpreadInTicks:
     def test_one_cent_is_one_tick(self):

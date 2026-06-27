@@ -805,3 +805,90 @@ class TestMBOTradeDeduplication:
 
         total = result.ofi_add_values + result.ofi_cancel_values + result.ofi_trade_values
         np.testing.assert_array_almost_equal(total, result.ofi_values)
+
+
+class TestLookaheadPrevention:
+    """Verify that MBO events before the first LOB snapshot are excluded,
+    not silently mapped to the first snapshot (P1-A fix).
+    """
+
+    def test_early_trade_excluded(self):
+        """A trade that arrives BEFORE the first LOB snapshot must not be
+        counted in trade arrays, as it would create a lookahead bug.
+        """
+        bid = 100 * NANODOLLARS_PER_DOLLAR
+        ask = 101 * NANODOLLARS_PER_DOLLAR
+
+        n_mbo = 5
+        n_lob = 3
+        mbo_actions = np.array(
+            [ACTION_TRADE, ACTION_ADD, ACTION_ADD, ACTION_TRADE, ACTION_TRADE],
+            dtype=np.uint8,
+        )
+        mbo_sides = np.full(n_mbo, SIDE_BID, dtype=np.uint8)
+        mbo_prices = np.full(n_mbo, bid, dtype=np.int64)
+        mbo_sizes = np.full(n_mbo, 100, dtype=np.uint32)
+
+        lob_bids = np.full(n_lob, bid, dtype=np.int64)
+        lob_asks = np.full(n_lob, ask, dtype=np.int64)
+
+        ts_start = 1_000_000_000
+        ts_step = 1_000_000
+
+        mbo_ts = np.array([
+            ts_start,
+            ts_start + ts_step,
+            ts_start + 2 * ts_step,
+            ts_start + 3 * ts_step,
+            ts_start + 4 * ts_step,
+        ], dtype=np.int64)
+
+        lob_ts = np.array([
+            ts_start + 2 * ts_step,
+            ts_start + 3 * ts_step,
+            ts_start + 4 * ts_step,
+        ], dtype=np.int64)
+
+        mid_usd = np.full(n_lob, 100.5, dtype=np.float64)
+        spread_usd = np.full(n_lob, 1.0, dtype=np.float64)
+
+        mbo_order_ids = np.where(
+            mbo_actions == ACTION_TRADE,
+            np.uint64(0),
+            np.arange(1, n_mbo + 1, dtype=np.uint64),
+        )
+
+        lob = pa.table({
+            "timestamp_ns": pa.array(lob_ts, type=pa.int64()),
+            "best_bid": pa.array(lob_bids, type=pa.int64()),
+            "best_ask": pa.array(lob_asks, type=pa.int64()),
+            "mid_price": pa.array(mid_usd, type=pa.float64()),
+            "spread": pa.array(spread_usd, type=pa.float64()),
+        })
+        mbo = pa.table({
+            "timestamp_ns": pa.array(mbo_ts, type=pa.int64()),
+            "order_id": pa.array(mbo_order_ids),
+            "action": pa.array(mbo_actions),
+            "side": pa.array(mbo_sides),
+            "price": pa.array(mbo_prices, type=pa.int64()),
+            "size": pa.array(mbo_sizes.astype(np.uint32)),
+        })
+
+        metadata = {
+            b"schema_version": b"1.0",
+            b"source": b"mbo-lob-reconstructor",
+            b"symbol": b"TEST",
+            b"date": b"2025-02-03",
+        }
+        lob = lob.replace_schema_metadata(metadata)
+        mbo = mbo.replace_schema_metadata(metadata)
+
+        day = DayData(date="2025-02-03", symbol="TEST", lob=lob, mbo=mbo)
+        config = AnalysisConfig(data_dir=Path("/tmp"), symbol="TEST")
+
+        result = compute_day_flow(day, config)
+
+        assert result.n_trades == 2, (
+            f"Expected 2 trades (events at ts+3, ts+4 that have LOB data), "
+            f"got {result.n_trades}. The early trade at ts+0 should be excluded."
+        )

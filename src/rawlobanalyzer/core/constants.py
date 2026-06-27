@@ -71,3 +71,22 @@ ANNUALIZATION_FACTOR: int = TRADING_DAYS_PER_YEAR
 BIPOWER_MU_1: float = 0.7978845608028654
 """mu_1 = sqrt(2/pi), used in bipower variation.
 Barndorff-Nielsen & Shephard (2004), Eq. (4)."""
+
+# --- Operational defaults ---
+
+EMA_PROGRESS_ALPHA: float = 0.3
+"""Exponential moving average smoothing factor for progress ETA estimation."""
+
+MIN_ELAPSED_SECONDS: float = 0.001
+"""Floor for per-day elapsed time to avoid division by zero in throughput."""
+
+# --- Statistical minimum sample sizes ---
+
+MIN_VAR_CVAR_SAMPLES: int = 10
+"""Minimum observations required for VaR/CVaR estimation."""
+
+MIN_HILL_SAMPLES: int = 20
+"""Minimum observations for the Hill tail-index estimator."""
+
+QQ_PLOT_POINTS: int = 100
+"""Number of quantile points for QQ-plot comparisons."""

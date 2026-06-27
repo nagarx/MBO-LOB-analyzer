@@ -78,6 +78,34 @@ class TestWelfordAccumulator:
         assert acc.count == 1
         assert acc.mean == pytest.approx(10.0)
 
+    def test_update_nan_skipped(self):
+        """Single NaN via update() must be silently skipped (P1-B fix)."""
+        acc = WelfordAccumulator()
+        acc.update(5.0)
+        acc.update(float("nan"))
+        assert acc.count == 1, "NaN should not increment count"
+        assert acc.mean == pytest.approx(5.0), "Mean should remain unchanged after NaN"
+
+    def test_update_inf_skipped(self):
+        """Single Inf via update() must be silently skipped (P1-B fix)."""
+        acc = WelfordAccumulator()
+        acc.update(3.0)
+        acc.update(7.0)
+        acc.update(float("inf"))
+        acc.update(float("-inf"))
+        assert acc.count == 2, "+/- Inf should not increment count"
+        assert acc.mean == pytest.approx(5.0)
+
+    def test_update_nan_does_not_corrupt(self):
+        """After a NaN, subsequent valid values still produce correct stats."""
+        acc = WelfordAccumulator()
+        acc.update(2.0)
+        acc.update(float("nan"))
+        acc.update(4.0)
+        assert acc.count == 2
+        assert acc.mean == pytest.approx(3.0)
+        assert acc.sample_variance == pytest.approx(2.0)
+
 
 class TestDistributionSummary:
     def test_basic(self):

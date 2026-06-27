@@ -21,10 +21,11 @@ from rawlobanalyzer.analysis.context import DayContext
 from rawlobanalyzer.analysis.price._return_engine import DayReturns
 from rawlobanalyzer.analysis.registry import register_analyzer
 from rawlobanalyzer.config.analysis_config import AnalysisConfig
-from rawlobanalyzer.core.constants import EPS
+from rawlobanalyzer.core.constants import EPS, MIN_HILL_SAMPLES, MIN_VAR_CVAR_SAMPLES, QQ_PLOT_POINTS
 from rawlobanalyzer.core.statistics import (
     DistributionSummary,
     StreamingDistribution,
+    WelfordAccumulator,
     acf as _acf,
     distribution_summary,
     var_cvar,
@@ -57,7 +58,7 @@ def _hill_estimator(data: np.ndarray, tail_fraction: float) -> float:
         Returns NaN if insufficient data.
     """
     clean = data[np.isfinite(data) & (data > EPS)]
-    if len(clean) < 20:
+    if len(clean) < MIN_HILL_SAMPLES:
         return np.nan
 
     k = max(int(len(clean) * tail_fraction), 2)
@@ -78,13 +79,13 @@ def _hill_estimator(data: np.ndarray, tail_fraction: float) -> float:
 
 
 
-def _qq_data(returns: np.ndarray, n_points: int = 100) -> dict[str, list[float]]:
+def _qq_data(returns: np.ndarray, n_points: int = QQ_PLOT_POINTS) -> dict[str, list[float]]:
     """Compute QQ-plot data comparing returns to a normal distribution.
 
     Returns dict with 'theoretical' and 'empirical' quantile arrays.
     """
     clean = returns[np.isfinite(returns)]
-    if len(clean) < 10:
+    if len(clean) < MIN_VAR_CVAR_SAMPLES:
         return {"theoretical": [], "empirical": []}
 
     probs = np.linspace(0.5 / n_points, 1.0 - 0.5 / n_points, n_points)
@@ -101,17 +102,23 @@ def _qq_data(returns: np.ndarray, n_points: int = 100) -> dict[str, list[float]]
 # ---------------------------------------------------------------------------
 
 class _ScaleAccumulator:
-    """Accumulates return statistics across days for one timescale (streaming)."""
+    """Accumulates return statistics across days for one timescale (streaming).
+
+    Uses O(1) memory per timescale via streaming accumulators instead of
+    growing per-day lists.
+    """
 
     def __init__(self, label: str) -> None:
         self.label = label
         self.dist = StreamingDistribution()
-        self.daily_var: list[float] = []
+        self.daily_var_acc = WelfordAccumulator()
 
     def add(self, returns: np.ndarray) -> None:
         if len(returns) > 0:
             self.dist.add_batch(returns)
-            self.daily_var.append(float(np.var(returns, ddof=1)) if len(returns) > 1 else 0.0)
+            clean = returns[np.isfinite(returns)]
+            dv = float(np.var(clean, ddof=1)) if len(clean) > 1 else 0.0
+            self.daily_var_acc.update(dv)
 
 
 # ---------------------------------------------------------------------------

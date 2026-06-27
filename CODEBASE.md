@@ -2,6 +2,8 @@
 
 Technical documentation of every module, data contract, and internal mechanism. This document is the single source of truth for understanding how the analysis pipeline works -- written for LLM coders who need to extend, debug, or integrate with this repo.
 
+> **Pipeline scope (2026-06-02).** This module is part of an **intraday trading research pipeline** — an experiment-first platform for discovering and validating *any* profitable **intraday** trading edge (no overnight positions), across approach classes (microstructure/HFT, scalping, intraday momentum, intraday statistical arbitrage, …) and instruments (equities, futures, same-day options). The pipeline *originated* as a high-frequency NVDA MBO/LOB microstructure system — that origin explains the "HFT" / "LOB" / "MBO" naming here — and that microstructure-direction program is now one (largely-closed) track among many. **Names are historical; the mission is general.** This module's role: the raw-data statistical analyzer (`rawlobanalyzer`) — 11 analyzers across 4 populated domains (health, price, spread, flow) profiling raw, unsampled MBO events + LOB snapshots *before* feature extraction (microstructure profile, participant behavior, signal location); distinct from `lob-dataset-analyzer` (which reads normalized NPY exports); approach-agnostic, characterizing any instrument's intraday structure. For the full mission + approach taxonomy + capability-readiness boundary, see root `CLAUDE.md` §Research Scope & Charter (+ `CROSS_ASSET_OFI_FINDINGS_AND_ISSUES_2026_06_01.md` §9).
+
 **Last updated**: 2026-03-05 | **Version**: 0.3.0 | **Python package**: `rawlobanalyzer` (in `src/rawlobanalyzer/`)
 
 ---
@@ -489,7 +491,7 @@ StatisticalThresholds
 ├── LiquidityThresholds
 │   ├── realized_spread_horizons_seconds: (1, 5, 30)
 │   ├── cost_to_trade_sizes: (100, 500, 1000, 5000, 10000)
-│   └── kyle_lambda_scale_seconds: 1
+│   └── kyle_lambda_scale_seconds: 1  # (unused -- reserved for planned Kyle's lambda)
 └── FlowThresholds
     ├── ofi_timescales_seconds: (1, 5, 10, 30, 60, 300)
     ├── intraday_bin_minutes: 1
@@ -810,8 +812,8 @@ All spread-domain analyzers consume `DaySpreads` from `DayContext.day_spreads` (
 1. **Effective spread**: `2 * |trade_price - mid_before| / mid_before * 10000` (in bps) for each MBO trade, using `np.searchsorted` to align trades with LOB snapshots. Includes distribution statistics.
 2. **Volume-weighted spread**: `sum(spread * trade_size) / sum(trade_size)` -- captures the spread experienced by actual trading volume
 3. **Microprice deviation**: `|microprice - mid_price| / mid_price * 10000` in bps -- measures the information content of the microprice beyond the simple midpoint
-4. **Kyle's lambda**: Regression coefficient from `delta_price = lambda * signed_volume + epsilon`, estimated at 1-second scale using OLS. Kyle (1985). Higher lambda = lower liquidity / higher price impact.
-5. **Amihud illiquidity**: `|return| / dollar_volume` aggregated at 5-minute scale. Amihud (2002). Higher = less liquid.
+4. **Kyle's lambda** *(planned, not yet implemented)*: Regression coefficient from `delta_price = lambda * signed_volume + epsilon`, estimated at 1-second scale using OLS. Kyle (1985). Higher lambda = lower liquidity / higher price impact.
+5. **Amihud illiquidity** *(planned, not yet implemented)*: `|return| / dollar_volume` aggregated at 5-minute scale. Amihud (2002). Higher = less liquid.
 
 ---
 
@@ -1046,7 +1048,7 @@ When `verbose=True`, the orchestrator emits per-day progress with timing, throug
 
 ### `tests/conftest.py` -- Shared Test Fixtures
 
-**`_make_day(n_lob, n_mbo, ...)`**: Generates a `DayData` with synthetic LOB and MBO Parquet tables:
+**`_write_day(n_lob, n_mbo, ...)`**: Generates a `DayData` with synthetic LOB and MBO Parquet tables:
 - LOB: sequential timestamps, random bid/ask prices around $100, derived columns (mid_price, spread, depth_imbalance, etc.)
 - MBO: sequential timestamps, mixed actions (Add/Cancel/Trade), random sides (Bid/Ask/None), prices near BBO, random sizes. Trade events automatically receive `order_id=0` (aggressor convention); non-trade events receive sequential IDs.
 - Configurable: `n_lob`, `n_mbo`, `ts_start` (nanosecond start time), price level, spread
@@ -1076,7 +1078,7 @@ tests/
 │       ├── test_spread_engine.py    # 9 tests: DaySpreads, ScaledSpreads
 │       ├── test_spread.py           # 6 tests: dist, regime, classification
 │       ├── test_depth.py            # 5 tests: profile, imbalance, recovery
-│       └── test_liquidity.py        # 4 tests: effective spread, Kyle's lambda
+│       └── test_liquidity.py        # 6 tests: effective spread, aggressor filter, LOB alignment
 ├── test_config/
 │   └── test_config.py               # 16 tests: config, profiles, timescales
 ├── test_core/

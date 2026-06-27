@@ -38,8 +38,8 @@ from rawlobanalyzer.core.constants import (
 )
 from rawlobanalyzer.core.calendar import WEEKDAY_NAMES, weekday_from_date
 from rawlobanalyzer.core.resampler import resample
-from rawlobanalyzer.core.statistics import StreamingDistribution, acf as _acf, distribution_summary
-from rawlobanalyzer.core.time_utils import REGIME_LABELS, rth_mask_utc, seconds_to_label, time_regime
+from rawlobanalyzer.core.statistics import StreamingDistribution, WelfordAccumulator, acf as _acf, distribution_summary
+from rawlobanalyzer.core.time_utils import N_REGIMES, REGIME_LABELS, rth_mask_utc, seconds_to_label, time_regime
 from rawlobanalyzer.io.schema import SIDE_ASK, SIDE_BID
 from rawlobanalyzer.reports.base_report import BaseReport
 from rawlobanalyzer.reports.formatters import (
@@ -240,8 +240,10 @@ class OrderFlowAnalyzer(BaseAnalyzer[OrderFlowReport]):
         self._ofi_spread_corr: dict[str, list[np.ndarray]] = {}
         self._ofi_acf_per_scale: dict[str, list[np.ndarray]] = {}
 
-        self._regime_abs_flow: dict[int, list[float]] = {}
-        self._intraday_ofi_bins: list[np.ndarray] = []
+        self._regime_abs_flow: dict[int, WelfordAccumulator] = {}
+        self._intraday_ofi_n_days: int = 0
+        self._intraday_ofi_sum: np.ndarray | None = None
+        self._intraday_ofi_sum_sq: np.ndarray | None = None
 
         self._trade_imbalance_per_scale: dict[str, list[np.ndarray]] = {}
 
@@ -287,12 +289,12 @@ class OrderFlowAnalyzer(BaseAnalyzer[OrderFlowReport]):
                 utc_offset_hours=self._utc_off,
             )
             abs_ofi = np.abs(flow.ofi_values)
-            for rv in range(7):
+            for rv in range(N_REGIMES):
                 mask = regimes == rv
                 if np.any(mask):
                     if rv not in self._regime_abs_flow:
-                        self._regime_abs_flow[rv] = []
-                    self._regime_abs_flow[rv].append(float(np.sum(abs_ofi[mask])))
+                        self._regime_abs_flow[rv] = WelfordAccumulator()
+                    self._regime_abs_flow[rv].update(float(np.sum(abs_ofi[mask])))
 
         total_abs_ofi = float(np.sum(np.abs(flow.ofi_values)))
 
@@ -319,7 +321,7 @@ class OrderFlowAnalyzer(BaseAnalyzer[OrderFlowReport]):
                     flow.ofi_timestamps_ns,
                     utc_offset_hours=self._utc_off,
                 )
-                for rv in range(7):
+                for rv in range(N_REGIMES):
                     rmask = regimes == rv
                     if np.any(rmask):
                         comp_record[f"abs_add_{rv}"] = float(np.sum(np.abs(flow.ofi_add_values[rmask])))
@@ -483,7 +485,14 @@ class OrderFlowAnalyzer(BaseAnalyzer[OrderFlowReport]):
         actual = resampled.values
         length = min(len(actual), n_bins)
         curve[:length] = actual[:length]
-        self._intraday_ofi_bins.append(curve)
+
+        if self._intraday_ofi_sum is None:
+            self._intraday_ofi_sum = np.zeros(n_bins, dtype=np.float64)
+            self._intraday_ofi_sum_sq = np.zeros(n_bins, dtype=np.float64)
+        valid = np.isfinite(curve)
+        self._intraday_ofi_sum[valid] += curve[valid]
+        self._intraday_ofi_sum_sq[valid] += curve[valid] ** 2
+        self._intraday_ofi_n_days += 1
 
     def _compute_trade_imbalance(self, flow: DayFlow) -> None:
         """Net signed trade volume per timescale bin (directional trades only)."""
@@ -617,7 +626,7 @@ class OrderFlowAnalyzer(BaseAnalyzer[OrderFlowReport]):
             }
 
         by_regime: dict[str, dict[str, float]] = {}
-        for rv in range(7):
+        for rv in range(N_REGIMES):
             add_key, cancel_key, trade_key = f"abs_add_{rv}", f"abs_cancel_{rv}", f"abs_trade_{rv}"
             radd = sum(r.get(add_key, 0.0) for r in self._ofi_component_per_day)
             rcancel = sum(r.get(cancel_key, 0.0) for r in self._ofi_component_per_day)
@@ -646,30 +655,28 @@ class OrderFlowAnalyzer(BaseAnalyzer[OrderFlowReport]):
 
     def _finalize_flow_intensity(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
-        for rv, vals in self._regime_abs_flow.items():
+        for rv, acc in self._regime_abs_flow.items():
             label = REGIME_LABELS.get(rv, f"regime_{rv}")
-            arr = np.array(vals)
             result[label] = {
-                "mean_abs_flow": float(np.mean(arr)),
-                "std_abs_flow": float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0,
-                "n_days": len(arr),
+                "mean_abs_flow": acc.mean,
+                "std_abs_flow": float(np.sqrt(acc.variance)) if acc.count > 1 else 0.0,
+                "n_days": acc.count,
             }
         return result
 
     def _finalize_intraday_curve(self) -> dict[str, Any]:
-        if not self._intraday_ofi_bins:
+        if self._intraday_ofi_sum is None or self._intraday_ofi_n_days == 0:
             return {}
-        stacked = np.array(self._intraday_ofi_bins)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            mean_curve = np.nanmean(stacked, axis=0)
-            std_curve = np.nanstd(stacked, axis=0)
+        n = self._intraday_ofi_n_days
+        mean_curve = self._intraday_ofi_sum / max(n, 1)
+        variance = self._intraday_ofi_sum_sq / max(n, 1) - mean_curve ** 2
+        std_curve = np.sqrt(np.maximum(variance, 0.0))
         return {
             "bin_minutes": self._flow_cfg.intraday_bin_minutes,
             "n_bins": len(mean_curve),
             "mean_ofi": mean_curve.tolist(),
             "std_ofi": std_curve.tolist(),
-            "n_days": len(self._intraday_ofi_bins),
+            "n_days": n,
         }
 
     def _finalize_trade_imbalance(self) -> dict[str, Any]:

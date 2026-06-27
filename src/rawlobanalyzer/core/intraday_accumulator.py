@@ -31,17 +31,18 @@ class IntradayCurveAccumulator:
         self._counts = np.zeros(n_bins, dtype=np.int64)
 
     def add(self, bin_indices: np.ndarray, values: np.ndarray) -> None:
-        """Accumulate values into the specified bins.
+        """Accumulate values into the specified bins (vectorized).
 
         Args:
             bin_indices: Integer array of bin indices (must be < n_bins).
             values: Float array of values, same length as bin_indices.
         """
-        for i, bin_idx in enumerate(bin_indices):
-            if bin_idx < self._n_bins:
-                self._sum[bin_idx] += values[i]
-                self._sum_sq[bin_idx] += values[i] ** 2
-                self._counts[bin_idx] += 1
+        valid = bin_indices < self._n_bins
+        idx = bin_indices[valid]
+        vals = values[valid]
+        np.add.at(self._sum, idx, vals)
+        np.add.at(self._sum_sq, idx, vals ** 2)
+        np.add.at(self._counts, idx, 1)
 
     @property
     def n_bins(self) -> int:

@@ -217,8 +217,11 @@ class LiquidityAnalyzer(BaseAnalyzer[LiquidityReport]):
 
         # searchsorted(side="right") - 1 gives the last LOB snapshot with
         # timestamp <= trade time, matching the flow engine convention.
+        # Trades before the first LOB snapshot get positions == -1; exclude
+        # them to avoid lookahead into future snapshots.
         positions = np.searchsorted(lob_ts, trade_ts, side="right") - 1
-        valid_pos = (positions >= 0) & (positions < len(mid)) & mid_valid[np.clip(positions, 0, len(mid) - 1)]
+        pos_safe = np.where(positions >= 0, positions, 0)
+        valid_pos = (positions >= 0) & (pos_safe < len(mid)) & mid_valid[pos_safe]
         if not np.any(valid_pos):
             return
 

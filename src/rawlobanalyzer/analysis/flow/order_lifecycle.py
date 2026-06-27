@@ -29,7 +29,7 @@ from rawlobanalyzer.analysis.registry import register_analyzer
 from rawlobanalyzer.config.analysis_config import AnalysisConfig
 from rawlobanalyzer.core.constants import EPS, NS_PER_SECOND
 from rawlobanalyzer.core.statistics import StreamingDistribution, WelfordAccumulator, distribution_summary
-from rawlobanalyzer.core.time_utils import REGIME_LABELS, time_regime
+from rawlobanalyzer.core.time_utils import N_REGIMES, REGIME_LABELS, time_regime
 from rawlobanalyzer.io.schema import (
     ACTION_ADD,
     ACTION_CANCEL,
@@ -548,7 +548,7 @@ class OrderLifecycleAnalyzer(BaseAnalyzer[OrderLifecycleReport]):
 
     def _finalize_regime(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
-        for rv in range(7):
+        for rv in range(N_REGIMES):
             total = self._regime_total_counts.get(rv, 0)
             if total == 0:
                 continue

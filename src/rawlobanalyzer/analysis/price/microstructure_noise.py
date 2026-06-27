@@ -217,6 +217,9 @@ class MicrostructureNoiseAnalyzer(BaseAnalyzer[MicrostructureNoiseReport]):
         rv_fast = rv_by_scale[fastest_scale]
         rv_slow = rv_by_scale[slowest_scale]
 
+        if not (np.isfinite(rv_fast) and np.isfinite(rv_slow)):
+            return
+
         res_ns_fast = int(fastest_scale * NS_PER_SECOND)
         resampled_fast = resample(ts_rth, mids_rth, res_ns_fast, agg="last")
         n_fast = int(np.sum(resampled_fast.counts > 0)) - 1

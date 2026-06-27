@@ -24,8 +24,8 @@ from rawlobanalyzer.analysis.flow._flow_engine import DayFlow
 from rawlobanalyzer.analysis.registry import register_analyzer
 from rawlobanalyzer.config.analysis_config import AnalysisConfig
 from rawlobanalyzer.core.constants import BPS_FACTOR, EPS, NS_PER_SECOND, PRICE_LEVEL_TOLERANCE_USD, TRADING_SECONDS_PER_DAY
-from rawlobanalyzer.core.statistics import StreamingDistribution, distribution_summary
-from rawlobanalyzer.core.time_utils import REGIME_LABELS, time_regime
+from rawlobanalyzer.core.statistics import StreamingDistribution, WelfordAccumulator, distribution_summary
+from rawlobanalyzer.core.time_utils import N_REGIMES, REGIME_LABELS, time_regime
 from rawlobanalyzer.io.schema import SIDE_ASK, SIDE_BID
 from rawlobanalyzer.reports.base_report import BaseReport
 from rawlobanalyzer.reports.formatters import (
@@ -198,8 +198,8 @@ class TradeAnalyzer(BaseAnalyzer[TradeReport]):
         self._large_buyer_count: int = 0
         self._large_seller_count: int = 0
 
-        self._regime_trade_counts: dict[int, list[int]] = {}
-        self._regime_durations_s: dict[int, list[float]] = {}
+        self._regime_rate_accs: dict[int, WelfordAccumulator] = {}
+        self._regime_count_accs: dict[int, WelfordAccumulator] = {}
 
         self._price_level_counts: dict[str, int] = {
             "at_bid": 0, "at_ask": 0, "inside_spread": 0, "outside": 0,
@@ -285,7 +285,7 @@ class TradeAnalyzer(BaseAnalyzer[TradeReport]):
             flow.trade_timestamps_ns[valid],
             utc_offset_hours=self._utc_off,
         )
-        for rv in range(7):
+        for rv in range(N_REGIMES):
             mask = regimes == rv
             if np.any(mask):
                 if rv not in self._regime_trade_through:
@@ -385,19 +385,17 @@ class TradeAnalyzer(BaseAnalyzer[TradeReport]):
             flow.trade_timestamps_ns,
             utc_offset_hours=self._utc_off,
         )
-        for rv in range(7):
+        for rv in range(N_REGIMES):
             mask = regimes == rv
             n = int(np.sum(mask))
             if n > 0:
-                if rv not in self._regime_trade_counts:
-                    self._regime_trade_counts[rv] = []
-                self._regime_trade_counts[rv].append(n)
-
+                if rv not in self._regime_rate_accs:
+                    self._regime_rate_accs[rv] = WelfordAccumulator()
+                    self._regime_count_accs[rv] = WelfordAccumulator()
                 ts_regime = flow.trade_timestamps_ns[mask]
-                duration_s = float(ts_regime[-1] - ts_regime[0]) / NS_PER_SECOND
-                if rv not in self._regime_durations_s:
-                    self._regime_durations_s[rv] = []
-                self._regime_durations_s[rv].append(max(duration_s, 1.0))
+                duration_s = max(float(ts_regime[-1] - ts_regime[0]) / NS_PER_SECOND, 1.0)
+                self._regime_rate_accs[rv].update(n / duration_s)
+                self._regime_count_accs[rv].update(float(n))
 
     def _compute_price_level(self, flow: DayFlow) -> None:
         """Classify trades relative to pre-trade BBO."""
@@ -513,17 +511,16 @@ class TradeAnalyzer(BaseAnalyzer[TradeReport]):
 
     def _finalize_regime_rate(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
-        for rv in range(7):
-            if rv not in self._regime_trade_counts:
+        for rv in range(N_REGIMES):
+            if rv not in self._regime_rate_accs:
                 continue
             label = REGIME_LABELS.get(rv, f"regime_{rv}")
-            counts = self._regime_trade_counts[rv]
-            durations = self._regime_durations_s.get(rv, [1.0] * len(counts))
-            rates = [c / d for c, d in zip(counts, durations)]
+            rate_acc = self._regime_rate_accs[rv]
+            count_acc = self._regime_count_accs[rv]
             result[label] = {
-                "mean_trades_per_second": float(np.mean(rates)),
-                "mean_total_trades": float(np.mean(counts)),
-                "n_days": len(counts),
+                "mean_trades_per_second": rate_acc.mean,
+                "mean_total_trades": count_acc.mean,
+                "n_days": rate_acc.count,
             }
         return result
 

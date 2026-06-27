@@ -87,6 +87,35 @@ class TestStatisticalThresholds:
         assert t.significance_alpha == 0.10
 
 
+class TestTimescaleConfigEdges:
+    """Edge-case tests for TimescaleConfig.from_label (P1-D fix)."""
+
+    def test_zero_seconds_raises(self):
+        with pytest.raises(ValueError, match="positive"):
+            TimescaleConfig.from_label("0s")
+
+    def test_zero_minutes_raises(self):
+        with pytest.raises(ValueError, match="positive"):
+            TimescaleConfig.from_label("0m")
+
+    def test_negative_seconds_raises(self):
+        with pytest.raises(ValueError, match="positive"):
+            TimescaleConfig.from_label("-1s")
+
+    def test_daily_2d_parses_correctly(self):
+        tc = TimescaleConfig.from_label("2d")
+        assert tc.resolution_ns == 2 * 24 * 3600 * NS_PER_SECOND
+
+    def test_daily_1d_default(self):
+        tc = TimescaleConfig.from_label("d")
+        assert tc.resolution_ns == 24 * 3600 * NS_PER_SECOND
+
+    def test_valid_labels_parse(self):
+        for label in ("1s", "5m", "1h", "1d"):
+            tc = TimescaleConfig.from_label(label)
+            assert tc.resolution_ns > 0
+
+
 class TestProfileLoader:
     def test_load_quick_profile(self):
         path = Path(__file__).parent.parent.parent / "configs" / "profiles" / "quick.yaml"

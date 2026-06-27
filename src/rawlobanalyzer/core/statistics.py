@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy import stats as sp_stats
 
-from rawlobanalyzer.core.constants import DEFAULT_PERCENTILES, EPS
+from rawlobanalyzer.core.constants import DEFAULT_PERCENTILES, EPS, MIN_VAR_CVAR_SAMPLES
 
 
 @dataclass
@@ -27,7 +27,13 @@ class WelfordAccumulator:
     _m2: float = 0.0
 
     def update(self, value: float) -> None:
-        """Incorporate a single observation."""
+        """Incorporate a single observation.
+
+        NaN and infinite values are silently skipped, matching
+        the filtering behavior of :meth:`update_batch`.
+        """
+        if not np.isfinite(value):
+            return
         self.count += 1
         delta = value - self.mean
         self.mean += delta / self.count
@@ -181,7 +187,7 @@ def var_cvar(
         Tuple of (VaR, CVaR) where both are negative for losses.
     """
     clean = returns[np.isfinite(returns)]
-    if len(clean) < 10:
+    if len(clean) < MIN_VAR_CVAR_SAMPLES:
         return (np.nan, np.nan)
 
     var = float(np.percentile(clean, alpha * 100))

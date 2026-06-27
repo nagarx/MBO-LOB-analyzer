@@ -172,22 +172,21 @@ class SpreadAnalyzer(BaseAnalyzer[SpreadReport]):
         self._tick_dist_ticks = StreamingDistribution()
         self._trade_spread_welford = WelfordAccumulator()
         self._trade_spread_count: int = 0
-        self._daily_mean_spreads: list[float] = []
-        self._daily_dates: list[str] = []
-        self._daily_weekdays: list[int] = []
+        self._daily_mean_spreads: deque[float] = deque(maxlen=500)
+        self._daily_dates: deque[str] = deque(maxlen=500)
+        self._daily_weekdays: deque[int] = deque(maxlen=500)
 
-        self._scaled_spreads: dict[str, list[np.ndarray]] = {}
+        self._scaled_spread_dists: dict[str, StreamingDistribution] = {}
         for tc in config.timescales:
-            self._scaled_spreads[tc.label] = []
+            self._scaled_spread_dists[tc.label] = StreamingDistribution()
 
         n_bins = TRADING_MINUTES_PER_DAY // max(self._spread_cfg.intraday_bin_minutes, 1)
         self._intraday_acc = IntradayCurveAccumulator(n_bins)
 
         self._regime_acc = RegimeStreamingAccumulator()
-        self._weekday_spreads: dict[int, list[float]] = {d: [] for d in range(5)}
+        self._weekday_spread_accs: dict[int, WelfordAccumulator] = {d: WelfordAccumulator() for d in range(5)}
         self._width_counts: dict[str, int] = {"1tick": 0, "2tick": 0, "3-5tick": 0, "5+tick": 0}
         self._resampled_for_acf: deque[np.ndarray] = deque(maxlen=60)
-        self._acf_max_days: int = 60
 
     def process_day(self, ctx: DayContext) -> None:
         day = ctx.day
@@ -226,7 +225,7 @@ class SpreadAnalyzer(BaseAnalyzer[SpreadReport]):
             self._daily_dates.append(day.date)
             self._daily_weekdays.append(weekday)
             if weekday < 5:
-                self._weekday_spreads[weekday].append(daily_mean)
+                self._weekday_spread_accs[weekday].update(daily_mean)
 
         wb = self._spread_cfg.width_bucket_ticks
         for t_val in spr_ticks[valid_usd]:
@@ -244,7 +243,9 @@ class SpreadAnalyzer(BaseAnalyzer[SpreadReport]):
             filled = ss.counts > 0
             means = ss.mean_spreads_usd[filled]
             if len(means) > 0:
-                self._scaled_spreads.setdefault(label, []).append(means)
+                if label not in self._scaled_spread_dists:
+                    self._scaled_spread_dists[label] = StreamingDistribution()
+                self._scaled_spread_dists[label].add_batch(means)
 
         primary = self.config.timescales[0].label if self.config.timescales else "1s"
         if primary in ds.scaled:
@@ -253,8 +254,6 @@ class SpreadAnalyzer(BaseAnalyzer[SpreadReport]):
             if np.any(filled):
                 vals = ss.mean_spreads_usd[filled]
                 self._resampled_for_acf.append(vals)
-                if len(self._resampled_for_acf) > self._acf_max_days:
-                    self._resampled_for_acf.pop(0)
 
         self._accumulate_intraday_curve(ds)
         self._accumulate_regime_spreads(ds)
@@ -342,11 +341,11 @@ class SpreadAnalyzer(BaseAnalyzer[SpreadReport]):
 
     def _finalize_timescale_stats(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
-        for label, chunks in self._scaled_spreads.items():
-            if not chunks:
+        for label, sd in self._scaled_spread_dists.items():
+            if sd.count < 2:
                 continue
-            merged = np.concatenate(chunks)
-            clean = merged[np.isfinite(merged) & (merged > 0)]
+            sample = sd.sample()
+            clean = sample[np.isfinite(sample) & (sample > 0)]
             if len(clean) < 2:
                 continue
             dist = distribution_summary(clean)
@@ -424,14 +423,13 @@ class SpreadAnalyzer(BaseAnalyzer[SpreadReport]):
     def _finalize_weekly_patterns(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for wd in range(5):
-            vals = self._weekday_spreads.get(wd, [])
-            if not vals:
+            acc = self._weekday_spread_accs.get(wd)
+            if acc is None or acc.count == 0:
                 continue
-            arr = np.array(vals)
             result[WEEKDAY_NAMES[wd]] = {
-                "mean_usd": float(np.mean(arr)),
-                "n_days": len(vals),
-                "std_usd": float(np.std(arr, ddof=1)) if len(vals) > 1 else 0.0,
+                "mean_usd": acc.mean,
+                "n_days": acc.count,
+                "std_usd": float(np.sqrt(acc.variance)) if acc.count > 1 else 0.0,
             }
         return result
 

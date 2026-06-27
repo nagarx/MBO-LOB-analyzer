@@ -25,6 +25,12 @@ _ET_OFFSET_DST_H: int = -4       # EDT
 _RTH_OPEN_ET_H: float = 9.5     # 9:30 AM ET
 _RTH_CLOSE_ET_H: float = 16.0   # 4:00 PM ET
 
+# Intraday regime boundaries in ET (fractional hours)
+_OPEN_AUCTION_END_ET_H: float = 9.0 + 35.0 / 60.0   # 9:35 AM ET
+_MORNING_END_ET_H: float = 12.0                       # 12:00 PM ET
+_MIDDAY_END_ET_H: float = 14.0                        # 2:00 PM ET
+_CLOSE_AUCTION_START_ET_H: float = 15.0 + 45.0 / 60.0  # 3:45 PM ET
+
 # Extended hours in ET
 _EXT_OPEN_ET_H: float = 4.0     # 4:00 AM ET
 _EXT_CLOSE_ET_H: float = 20.0   # 8:00 PM ET
@@ -167,11 +173,11 @@ def time_regime(
     regime = np.full(len(timestamps_ns), 6, dtype=np.int8)  # default: after-hours
 
     rth_open = _RTH_OPEN_ET_H + offset
-    open_end = 9.0 + 35.0 / 60.0 + offset          # 9:35 ET
-    morning_end = 12.0 + offset                      # 12:00 ET
-    midday_end = 14.0 + offset                       # 14:00 ET
-    close_start = 15.0 + 45.0 / 60.0 + offset       # 15:45 ET
-    rth_close = _RTH_CLOSE_ET_H + offset             # 16:00 ET
+    open_end = _OPEN_AUCTION_END_ET_H + offset
+    morning_end = _MORNING_END_ET_H + offset
+    midday_end = _MIDDAY_END_ET_H + offset
+    close_start = _CLOSE_AUCTION_START_ET_H + offset
+    rth_close = _RTH_CLOSE_ET_H + offset
 
     regime[hours_utc < rth_open] = 0
     mask_open = (hours_utc >= rth_open) & (hours_utc < open_end)
@@ -198,6 +204,9 @@ REGIME_LABELS: dict[int, str] = {
     5: "close-auction",
     6: "after-hours",
 }
+
+N_REGIMES: int = len(REGIME_LABELS)
+"""Number of intraday regimes (used instead of magic ``range(7)``)."""
 
 
 def seconds_to_label(s: float) -> str:

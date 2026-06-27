@@ -52,7 +52,7 @@ def log_returns(prices: np.ndarray) -> np.ndarray:
         Array of log returns, length ``len(prices) - 1``.
         Invalid prices (<=0, NaN) produce NaN returns.
     """
-    safe = np.where(prices > 0, prices, np.nan)
+    safe = np.where(np.isfinite(prices) & (prices > 0), prices, np.nan)
     return np.diff(np.log(safe))
 
 

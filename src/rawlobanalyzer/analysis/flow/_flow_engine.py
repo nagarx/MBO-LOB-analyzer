@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from rawlobanalyzer.config.analysis_config import AnalysisConfig
-from rawlobanalyzer.core.constants import NANODOLLARS_PER_DOLLAR, NS_PER_SECOND
+from rawlobanalyzer.core.constants import EPS, NANODOLLARS_PER_DOLLAR, NS_PER_SECOND
 from rawlobanalyzer.core.resampler import resample, resample_to_grid
 from rawlobanalyzer.core.time_utils import rth_grid_edges_ns, rth_mask_utc, seconds_to_label
 from rawlobanalyzer.io.loader import DayData
@@ -209,12 +209,14 @@ def compute_day_flow(
     # --- Vectorized MBO-LOB alignment ---
     # For each MBO event, find the LOB snapshot just before it.
     # searchsorted(side="right") - 1 gives the last LOB snapshot <= mbo_ts.
+    # Events before the first LOB snapshot get lob_idx == -1; these MUST be
+    # excluded (not clipped to 0) to avoid lookahead into future snapshots.
     lob_idx = np.searchsorted(lob_ts, mbo_ts, side="right") - 1
-    lob_idx_clipped = np.clip(lob_idx, 0, len(lob_ts) - 1)
     valid_alignment = lob_idx >= 0
+    lob_idx_safe = np.where(valid_alignment, lob_idx, 0)
 
-    aligned_best_bid = lob_best_bid[lob_idx_clipped]
-    aligned_best_ask = lob_best_ask[lob_idx_clipped]
+    aligned_best_bid = lob_best_bid[lob_idx_safe]
+    aligned_best_ask = lob_best_ask[lob_idx_safe]
 
     # --- Trade extraction (aggressor-only) ---
     # Databento MBO emits two events per trade: aggressor (order_id=0) and
@@ -235,14 +237,14 @@ def compute_day_flow(
     trade_spread_before = np.full(n_trades, np.nan, dtype=np.float64)
 
     if lob_mid is not None:
-        trade_mid_before = lob_mid[lob_idx_clipped[trade_valid]]
+        trade_mid_before = lob_mid[lob_idx_safe[trade_valid]]
     else:
         bid_usd = aligned_best_bid[trade_valid].astype(np.float64) / NANODOLLARS_PER_DOLLAR
         ask_usd = aligned_best_ask[trade_valid].astype(np.float64) / NANODOLLARS_PER_DOLLAR
         trade_mid_before = (bid_usd + ask_usd) / 2.0
 
     if lob_spread is not None:
-        trade_spread_before = lob_spread[lob_idx_clipped[trade_valid]]
+        trade_spread_before = lob_spread[lob_idx_safe[trade_valid]]
     else:
         bid_usd = aligned_best_bid[trade_valid].astype(np.float64) / NANODOLLARS_PER_DOLLAR
         ask_usd = aligned_best_ask[trade_valid].astype(np.float64) / NANODOLLARS_PER_DOLLAR
@@ -327,7 +329,7 @@ def compute_day_flow(
 
                 net = resampled.values
                 ofi_std = np.nanstd(net)
-                if ofi_std > 0:
+                if np.isfinite(ofi_std) and ofi_std > EPS:
                     normed = net / ofi_std
                 else:
                     normed = np.full_like(net, np.nan)

@@ -22,7 +22,7 @@ from rawlobanalyzer.analysis.flow._flow_engine import compute_day_flow
 from rawlobanalyzer.analysis.price._return_engine import compute_day_returns
 from rawlobanalyzer.analysis.spread._spread_engine import compute_day_spreads
 from rawlobanalyzer.config.analysis_config import AnalysisConfig
-from rawlobanalyzer.core.constants import NS_PER_DAY
+from rawlobanalyzer.core.constants import EMA_PROGRESS_ALPHA, MIN_ELAPSED_SECONDS, NS_PER_DAY
 from rawlobanalyzer.core.time_utils import utc_offset_for_date
 from rawlobanalyzer.io.session import AnalysisSession
 from rawlobanalyzer.reports.base_report import BaseReport
@@ -175,11 +175,13 @@ class BatchOrchestrator:
             day_elapsed = time.monotonic() - day_t0
             day_rows = day.n_lob_rows + day.n_mbo_rows
             total_rows += day_rows
-            alpha = 0.3
-            ema_day_time = day_elapsed if ema_day_time == 0.0 else (alpha * day_elapsed + (1 - alpha) * ema_day_time)
+            ema_day_time = (
+                day_elapsed if ema_day_time == 0.0
+                else (EMA_PROGRESS_ALPHA * day_elapsed + (1 - EMA_PROGRESS_ALPHA) * ema_day_time)
+            )
             remaining = n_days - (i + 1)
             eta = ema_day_time * remaining
-            rows_per_sec = day_rows / max(day_elapsed, 0.001)
+            rows_per_sec = day_rows / max(day_elapsed, MIN_ELAPSED_SECONDS)
             mem_mb = _peak_memory_mb()
 
             logger.info(
@@ -262,11 +264,18 @@ class BatchOrchestrator:
 
         from rawlobanalyzer.config.timescale_config import TradingHours
 
+        from rawlobanalyzer.core.time_utils import (
+            _EXT_CLOSE_ET_H,
+            _EXT_OPEN_ET_H,
+            _RTH_CLOSE_ET_H,
+            _RTH_OPEN_ET_H,
+        )
+
         adjusted_hours = TradingHours(
-            rth_open_utc_h=9.5 - utc_offset,
-            rth_close_utc_h=16.0 - utc_offset,
-            ext_open_utc_h=4.0 - utc_offset,
-            ext_close_utc_h=20.0 - utc_offset,
+            rth_open_utc_h=_RTH_OPEN_ET_H - utc_offset,
+            rth_close_utc_h=_RTH_CLOSE_ET_H - utc_offset,
+            ext_open_utc_h=_EXT_OPEN_ET_H - utc_offset,
+            ext_close_utc_h=_EXT_CLOSE_ET_H - utc_offset,
             label=f"us_equity_{'edt' if utc_offset == -4 else 'est'}",
             utc_offset_hours=utc_offset,
         )
