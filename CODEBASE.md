@@ -4,7 +4,7 @@ Technical documentation of every module, data contract, and internal mechanism. 
 
 > **Pipeline scope (2026-06-02).** This module is part of an **intraday trading research pipeline** — an experiment-first platform for discovering and validating *any* profitable **intraday** trading edge (no overnight positions), across approach classes (microstructure/HFT, scalping, intraday momentum, intraday statistical arbitrage, …) and instruments (equities, futures, same-day options). The pipeline *originated* as a high-frequency NVDA MBO/LOB microstructure system — that origin explains the "HFT" / "LOB" / "MBO" naming here — and that microstructure-direction program is now one (largely-closed) track among many. **Names are historical; the mission is general.** This module's role: the raw-data statistical analyzer (`rawlobanalyzer`) — 11 analyzers across 4 populated domains (health, price, spread, flow) profiling raw, unsampled MBO events + LOB snapshots *before* feature extraction (microstructure profile, participant behavior, signal location); distinct from `lob-dataset-analyzer` (which reads normalized NPY exports); approach-agnostic, characterizing any instrument's intraday structure. For the full mission + approach taxonomy + capability-readiness boundary, see root `CLAUDE.md` §Research Scope & Charter (+ `CROSS_ASSET_OFI_FINDINGS_AND_ISSUES_2026_06_01.md` §9).
 
-**Last updated**: 2026-03-05 | **Version**: 0.3.0 | **Python package**: `rawlobanalyzer` (in `src/rawlobanalyzer/`)
+**Last updated**: 2026-07-07 | **Version**: 0.3.0 | **Python package**: `rawlobanalyzer` (in `src/rawlobanalyzer/`)
 
 ---
 
@@ -832,7 +832,7 @@ All flow-domain analyzers (except OrderLifecycleAnalyzer) consume `DayFlow` from
 
 **ClassVars**: `needs_mbo = True`, `needs_flow = True`, `needs_returns = True`, `needs_spreads = True`
 
-**Metrics (12 sub-analyses)**:
+**Metrics (11 sub-analyses)**:
 
 1. **OFI distribution per timescale**: For each of the 6 OFI scales (1s, 5s, 10s, 30s, 1m, 5m), computes mean, std, skewness, kurtosis across all RTH bins across all days. Includes normalized OFI distribution (mean ~0, std ~1) for cross-stock comparability.
 
@@ -1049,7 +1049,7 @@ When `verbose=True`, the orchestrator emits per-day progress with timing, throug
 
 ## 14. Test Suite
 
-**380 tests** covering all modules. Tests use synthetic Parquet data generated in `tests/conftest.py`.
+Tests cover all modules (counts are not hand-maintained per hft-rules §11 — run `pytest --collect-only -q` for the live count). Tests use synthetic Parquet data generated in `tests/conftest.py`.
 
 ### `tests/conftest.py` -- Shared Test Fixtures
 
@@ -1062,41 +1062,43 @@ When `verbose=True`, the orchestrator emits per-day progress with timing, throug
 
 ### Test Organization
 
+Per-file test counts are not hand-maintained (hft-rules §11) — run `pytest --collect-only -q tests/<path>` for a live count.
+
 ```
 tests/
 ├── test_analysis/
-│   ├── test_base.py                 # 8 tests: BaseAnalyzer protocol
-│   ├── test_orchestrator.py         # 12 tests: BatchOrchestrator, DayContext caching
-│   ├── test_empty_day.py            # 44 tests: zero-day finalize, empty-day process, JSON roundtrip, summary for all 11 analyzers
+│   ├── test_base.py                 # BaseAnalyzer protocol
+│   ├── test_orchestrator.py         # BatchOrchestrator, DayContext caching
+│   ├── test_empty_day.py            # zero-day finalize, empty-day process, JSON roundtrip, summary for all 11 analyzers
 │   ├── test_flow/
-│   │   ├── test_flow_engine.py      # 33 tests: trade extraction, OFI, SIDE_NONE, decomposition, normalization, MBO trade deduplication
-│   │   ├── test_order_flow.py       # 12 tests: OFI distribution, delta, aggressor, spread corr, components
-│   │   ├── test_trade.py            # 12 tests: size, clustering, VWAP, impact, directional sizes
-│   │   └── test_order_lifecycle.py  # 17 tests: lifetime, fill rate, transitions, partial fills, eviction hard cap
+│   │   ├── test_flow_engine.py      # trade extraction, OFI, SIDE_NONE, decomposition, normalization, MBO trade deduplication
+│   │   ├── test_order_flow.py       # OFI distribution, delta, aggressor, spread corr, components
+│   │   ├── test_trade.py            # size, clustering, VWAP, impact, directional sizes
+│   │   └── test_order_lifecycle.py  # lifetime, fill rate, transitions, partial fills, eviction hard cap
 │   ├── test_price/
-│   │   ├── test_return_engine.py    # 9 tests: DayReturns, ScaledReturns
-│   │   ├── test_returns.py          # 20 tests: return dist, tail, persistence
-│   │   ├── test_volatility.py       # 13 tests: RV, ACF, ARCH, weekday
-│   │   ├── test_jump_risk.py        # 14 tests: BNS test, jump fraction
-│   │   └── test_microstructure_noise.py  # 11 tests: signature, Roll, SNR
+│   │   ├── test_return_engine.py    # DayReturns, ScaledReturns
+│   │   ├── test_returns.py          # return dist, tail, persistence
+│   │   ├── test_volatility.py       # RV, ACF, ARCH, weekday
+│   │   ├── test_jump_risk.py        # BNS test, jump fraction
+│   │   └── test_microstructure_noise.py  # signature, Roll, SNR
 │   └── test_spread/
-│       ├── test_spread_engine.py    # 9 tests: DaySpreads, ScaledSpreads
-│       ├── test_spread.py           # 6 tests: dist, regime, classification
-│       ├── test_depth.py            # 5 tests: profile, imbalance, recovery
-│       └── test_liquidity.py        # 6 tests: effective spread, aggressor filter, LOB alignment
+│       ├── test_spread_engine.py    # DaySpreads, ScaledSpreads
+│       ├── test_spread.py           # dist, regime, classification
+│       ├── test_depth.py            # profile, imbalance, recovery
+│       └── test_liquidity.py        # effective spread, aggressor filter, LOB alignment
 ├── test_config/
-│   └── test_config.py               # 16 tests: config, profiles, timescales
+│   └── test_config.py               # config, profiles, timescales
 ├── test_core/
-│   ├── test_resampler.py            # 22 tests: all agg modes, edge cases, resample_to_grid
-│   ├── test_time_utils.py           # 22 tests: RTH mask, regimes, rth_grid_edges_ns, DST boundaries
-│   ├── test_price_utils.py          # 9 tests: conversions, log returns
-│   └── test_statistics.py           # 15 tests: Welford (incl. NaN handling), distribution, VaR
+│   ├── test_resampler.py            # all agg modes, edge cases, resample_to_grid
+│   ├── test_time_utils.py           # RTH mask, regimes, rth_grid_edges_ns, DST boundaries
+│   ├── test_price_utils.py          # conversions, log returns
+│   └── test_statistics.py           # Welford (incl. NaN handling), distribution, VaR
 ├── test_io/
-│   ├── test_loader.py               # 12 tests: loading, projection, validation
-│   └── test_schema.py               # 10 tests: schema validation, enums
+│   ├── test_loader.py               # loading, projection, validation
+│   └── test_schema.py               # schema validation, enums
 └── test_reports/
-    ├── test_base_report.py          # 20 tests: NaN sanitization, metadata, JSON roundtrip
-    └── test_formatters.py           # 25 tests: NaN/Inf/None cells, empty tables, section headers
+    ├── test_base_report.py          # NaN sanitization, metadata, JSON roundtrip
+    └── test_formatters.py           # NaN/Inf/None cells, empty tables, section headers
 ```
 
 ---

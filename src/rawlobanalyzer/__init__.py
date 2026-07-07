@@ -8,4 +8,4 @@ before any feature engineering or model training.
 Consumes Parquet output from MBO-LOB-reconstructor.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

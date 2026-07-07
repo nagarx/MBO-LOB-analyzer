@@ -202,7 +202,7 @@ Analyzer.finalize() --> Report --> JSON + TXT
 |---|---|---|
 | **SpreadAnalyzer** | Tick-level spread distribution, intraday spread curve, regime-conditional spreads, trade-conditional spreads, spread width classification | LOB (spread, best_bid, best_ask) |
 | **DepthAnalyzer** | 10-level depth profile (mean sizes at each level), depth imbalance, concentration, post-trade depth recovery, depth stability | LOB (bid_prices, bid_sizes, ask_prices, ask_sizes) |
-| **LiquidityAnalyzer** | Effective spread, volume-weighted spread, microprice deviation, Kyle's lambda, Amihud illiquidity | LOB + MBO |
+| **LiquidityAnalyzer** | Effective spread, volume-weighted spread, microprice deviation; Kyle's lambda + Amihud illiquidity *(planned, not yet implemented)* | LOB + MBO |
 
 ### Flow Domain (MBO-powered)
 
@@ -268,7 +268,7 @@ MBO-LOB-reconstructor (Rust)          feature-extractor-MBO-LOB
 
 ## Test Suite
 
-391 tests covering all analyzers, shared engines, core utilities, config system, and I/O layer:
+The test suite covers all analyzers, shared engines, core utilities, config system, and I/O layer (counts are not hand-maintained — run `pytest --collect-only -q` for the live count):
 
 ```bash
 uv run pytest -v              # full suite
