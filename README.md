@@ -131,7 +131,10 @@ src/rawlobanalyzer/
 │   ├── health/          # DataQualityAnalyzer
 │   ├── price/           # ReturnAnalyzer, VolatilityAnalyzer, JumpRiskAnalyzer, MicrostructureNoiseAnalyzer
 │   ├── spread/          # SpreadAnalyzer, DepthAnalyzer, LiquidityAnalyzer
-│   └── flow/            # OrderFlowAnalyzer, TradeAnalyzer, OrderLifecycleAnalyzer
+│   ├── flow/            # OrderFlowAnalyzer, TradeAnalyzer, OrderLifecycleAnalyzer
+│   ├── cross_day/       # EMPTY placeholder (reserved) -- do NOT import
+│   ├── depth/           # EMPTY placeholder -- NOT the DepthAnalyzer (that lives in spread/depth.py)
+│   └── temporal/        # EMPTY placeholder (reserved) -- do NOT import; see "Planned Analyzers"
 └── reports/         # Report serialization (JSON + text summary)
 ```
 

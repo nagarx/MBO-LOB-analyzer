@@ -86,11 +86,14 @@ MBO-LOB-analyzer/
 │   │   │   ├── spread.py          # SpreadAnalyzer
 │   │   │   ├── depth.py           # DepthAnalyzer
 │   │   │   └── liquidity.py       # LiquidityAnalyzer
-│   │   └── flow/
-│   │       ├── _flow_engine.py    # Shared: compute_day_flow() -> DayFlow
-│   │       ├── order_flow.py      # OrderFlowAnalyzer
-│   │       ├── trade.py           # TradeAnalyzer
-│   │       └── order_lifecycle.py # OrderLifecycleAnalyzer
+│   │   ├── flow/
+│   │   │   ├── _flow_engine.py    # Shared: compute_day_flow() -> DayFlow
+│   │   │   ├── order_flow.py      # OrderFlowAnalyzer
+│   │   │   ├── trade.py           # TradeAnalyzer
+│   │   │   └── order_lifecycle.py # OrderLifecycleAnalyzer
+│   │   ├── cross_day/             # EMPTY placeholder (reserved future domain) -- do NOT import
+│   │   ├── depth/                 # EMPTY placeholder -- NOT the real DepthAnalyzer (that is spread/depth.py)
+│   │   └── temporal/              # EMPTY placeholder (reserved future domain) -- do NOT import
 │   └── reports/
 │       ├── base_report.py         # BaseReport abstract class
 │       └── formatters.py          # Text table/section formatting
@@ -102,6 +105,8 @@ MBO-LOB-analyzer/
     ├── test_io/
     └── test_reports/              # BaseReport, formatters tests
 ```
+
+> **Empty placeholder subpackages** — `analysis/cross_day/`, `analysis/depth/`, and `analysis/temporal/` each contain only a 0-byte `__init__.py`. They are reserved-but-unimplemented domain slots (future homes for the hidden-depth and temporal/clustering work sketched in the README's [Planned Analyzers](README.md#planned-analyzers-next-phase) roadmap, plus a reserved cross-day slot not yet in that roadmap) — **do NOT import from them; nothing is registered there.** In particular, the empty `analysis/depth/` is **not** the depth analyzer: the real, registered `DepthAnalyzer` lives in `analysis/spread/depth.py` (§10).
 
 ---
 
